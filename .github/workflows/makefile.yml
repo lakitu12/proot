@@ -4,24 +4,22 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
-    # 使用 Termux 官方构建镜像，它包含了安卓特有的内核头文件（如 ashmem.h）
     container: ghcr.io/termux/package-builder:latest
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Dependencies
+        run: |
+          apt-get update
+          apt-get install -y libtalloc-dev
+
       - name: Build
         run: |
-          # 1. 安装项目依赖（镜像内已预置基础工具，但需确保 talloc 开发库存在）
-          # 在该镜像中，我们可以直接使用 apt 安装 Linux 版本的依赖进行 native 编译测试
-          sudo apt-get update
-          sudo apt-get install -y libtalloc-dev
-
-          # 2. 编译源码
-          # 根据你的 build.sh 逻辑，建议加上 CPPFLAGS
+          # 进入包含 GNUmakefile 的目录
+          # 使用 -I. 强制将当前目录加入头文件搜索路径
           cd src
-          make CPPFLAGS="-DARG_MAX=131072"
+          make CPPFLAGS="-I. -DARG_MAX=131072"
 
       - name: Verify Binary
         run: |
-          # 验证生成的可执行文件
           ./src/proot --version
