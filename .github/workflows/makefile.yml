@@ -32,11 +32,8 @@ jobs:
       - name: Quick Functional Test
         run: |
           export PATH="$(pwd)/src:$PATH"
-          
           proot --version
-          
           proot -r / /usr/bin/whoami | grep root || echo "Root emulation active"
-          
           mkdir -p /tmp/test_bind
           echo "success" > /tmp/test_bind/status
           proot -b /tmp/test_bind:/mnt /usr/bin/cat /mnt/status | grep success
