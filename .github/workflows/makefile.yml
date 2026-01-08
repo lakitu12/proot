@@ -23,7 +23,8 @@ jobs:
             exit 1
           fi
           sed -i '1i#include <linux/stat.h>' tracee/statx.h
-          make CPPFLAGS="-I. -D_GNU_SOURCE -DARG_MAX=131072"
+          sed -i 's/--rosegment//g' GNUmakefile
+          make CPPFLAGS="-I. -D_GNU_SOURCE -DARG_MAX=131072" LDFLAGS=""
 
       - name: Verify Binary
         run: |
