@@ -23,9 +23,12 @@ jobs:
             exit 1
           fi
           sed -i '1i#include <linux/stat.h>' tracee/statx.h
-          grep -r "rosegment" .
-          export CPPFLAGS="-I. -D_GNU_SOURCE -DARG_MAX=131072"
-          make CPPFLAGS="$CPPFLAGS" LDFLAGS_LOADER="" LDFLAGS_PROOT=""
+          find . -name "GNUmakefile" -exec sed -i 's/-Wl,--rosegment//g' {} +
+          find . -name "GNUmakefile" -exec sed -i 's/--rosegment//g' {} +
+          find . -name "GNUmakefile" -exec sed -i 's/-Wl, / /g' {} +
+          find . -name "GNUmakefile" -exec sed -i 's/,,/,/g' {} +
+
+          make CPPFLAGS="-I. -D_GNU_SOURCE -DARG_MAX=131072" LDFLAGS_FOR_LOADER=""
 
       - name: Verify Binary
         run: |
