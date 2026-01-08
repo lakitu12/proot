@@ -27,9 +27,13 @@ jobs:
           find . -name "GNUmakefile" -exec sed -i 's/--rosegment//g' {} +
           find . -name "GNUmakefile" -exec sed -i 's/-Wl, / /g' {} +
           find . -name "GNUmakefile" -exec sed -i 's/,,/,/g' {} +
-
           make CPPFLAGS="-I. -D_GNU_SOURCE -DARG_MAX=131072" LDFLAGS_FOR_LOADER=""
-
+          
       - name: Verify Binary
         run: |
           ./src/proot --version
+          
+      - name: Run Test Suite
+        run: |
+          export PATH=$PATH:$(pwd)/src
+          make -C test
