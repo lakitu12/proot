@@ -1,0 +1,35 @@
+name: PRoot CI
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ghcr.io/termux/package-builder:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libtalloc-dev
+
+      - name: Build
+        run: |
+          cd src
+          mkdir -p linux
+          curl -Lo linux/ashmem.h https://raw.githubusercontent.com/aosp-mirror/platform_bionic/master/libc/kernel/uapi/linux/ashmem.h
+          if ! grep -q "ASHMEM_SET_SIZE" linux/ashmem.h; then
+            echo "错误: 无法下载有效的 ashmem.h"
+            exit 1
+          fi
+          sed -i '1i#include <linux/stat.h>' tracee/statx.h
+          find . -name "GNUmakefile" -exec sed -i 's/-Wl,--rosegment//g' {} +
+          find . -name "GNUmakefile" -exec sed -i 's/--rosegment//g' {} +
+          find . -name "GNUmakefile" -exec sed -i 's/-Wl, / /g' {} +
+          find . -name "GNUmakefile" -exec sed -i 's/,,/,/g' {} +
+
+          make CPPFLAGS="-I. -D_GNU_SOURCE -DARG_MAX=131072" LDFLAGS_FOR_LOADER=""
+
+      - name: Verify Binary
+        run: |
+          ./src/proot --version
