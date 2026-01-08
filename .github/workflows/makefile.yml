@@ -19,7 +19,7 @@ jobs:
           mkdir -p linux
           curl -Lo linux/ashmem.h https://raw.githubusercontent.com/aosp-mirror/platform_bionic/master/libc/kernel/uapi/linux/ashmem.h
           if ! grep -q "ASHMEM_SET_SIZE" linux/ashmem.h; then
-            echo "错误: 无法下载有效的 ashmem.h"
+            echo "Error: Unable to download a valid ashmem.h"
             exit 1
           fi
           sed -i '1i#include <linux/stat.h>' tracee/statx.h
