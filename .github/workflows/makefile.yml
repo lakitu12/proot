@@ -15,15 +15,11 @@ jobs:
 
       - name: Build
         run: |
-          # 进入包含 GNUmakefile 的目录
-          # 使用 -I. 强制将当前目录加入头文件搜索路径
           cd src
-          # 1. 注入 _GNU_SOURCE 以修复 get_current_dir_name 警告
-          # 2. 注入 -D_VG_USER_SPACE_ 某些情况下有助于处理 statx 结构
-          # 3. 强制包含 sys/stat.h 可能有助于解决不完整类型问题
-          export CPPFLAGS="-I. -D_GNU_SOURCE -DARG_MAX=131072"
+          mkdir -p linux
+          curl -Lo linux/ashmem.h https://raw.githubusercontent.com/torvalds/linux/master/drivers/staging/android/uapi/ashmem.h
           sed -i '1i#include <linux/stat.h>' tracee/statx.h
-          make CPPFLAGS="$CPPFLAGS"
+          make CPPFLAGS="-I. -D_GNU_SOURCE -DARG_MAX=131072"
 
       - name: Verify Binary
         run: |
