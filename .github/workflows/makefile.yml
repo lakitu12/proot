@@ -31,16 +31,12 @@ jobs:
           
       - name: Quick Functional Test
         run: |
-          # 确保 proot 在 PATH
           export PATH="$(pwd)/src:$PATH"
           
-          # 1. 基础运行测试
           proot --version
           
-          # 2. 模拟一个 root 映射测试
           proot -r / /usr/bin/whoami | grep root || echo "Root emulation active"
           
-          # 3. 路径绑定测试
           mkdir -p /tmp/test_bind
           echo "success" > /tmp/test_bind/status
           proot -b /tmp/test_bind:/mnt /usr/bin/cat /mnt/status | grep success
