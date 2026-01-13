@@ -1,10 +1,6 @@
 name: Build PRoot Termux Deb
 on: 
   push:
-    branches: [ "**" ]
-  pull_request:
-    branches: [ main, master ]
-  # 添加手动触发支持
   workflow_dispatch:
 
 jobs:
@@ -19,40 +15,45 @@ jobs:
 
       - name: Build and Package
         run: |
-          # 1. 设置工作目录并将源码同步到 Termux 构建路径
-          # Termux 脚本期望在 packages/<pkgname> 下运行
+          # 1. 自动定位 Termux 构建脚本目录
+          # 官方镜像通常将仓库放在 /opt/termux-packages
+          if [ -d "/opt/termux-packages" ]; then
+              TERMUX_BASE="/opt/termux-packages"
+          elif [ -d "/home/builder/termux-packages" ]; then
+              TERMUX_BASE="/home/builder/termux-packages"
+          else
+              echo "错误: 找不到 termux-packages 目录"
+              exit 1
+          fi
+          
           PKG_NAME="proot"
-          TERMUX_BASE="/home/builder/termux-packages"
           PKG_DIR="$TERMUX_BASE/packages/$PKG_NAME"
           
+          # 2. 将当前源码同步到构建位置
           mkdir -p "$PKG_DIR"
           cp -r ./* "$PKG_DIR/"
 
-          # 2. 修复源码兼容性 (解决之前遇到的构建障碍)
+          # 3. 修复源码
           cd "$PKG_DIR/src"
-          
-          # 下载 ashmem.h 补丁
           mkdir -p linux
           curl -LSs -o linux/ashmem.h https://raw.githubusercontent.com/aosp-mirror/platform_bionic/master/libc/kernel/uapi/linux/ashmem.h
-          
-          # 修复 statx 结构体定义
           sed -i '1i#include <linux/stat.h>' tracee/statx.h
           
-          # 彻底移除不支持的链接器选项 --rosegment，防止 ld 报错
+          # 清理 ld 参数
           find . -name "GNUmakefile" -exec sed -i 's/-Wl,--rosegment//g' {} +
           find . -name "GNUmakefile" -exec sed -i 's/--rosegment//g' {} +
-          # 清理由于 sed 替换可能留下的非法逗号 (防止 "cannot find :" 错误)
           find . -name "GNUmakefile" -exec sed -i 's/,,/,/g' {} +
           find . -name "GNUmakefile" -exec sed -i 's/-Wl, / /g' {} +
 
-          # 3. 执行 Termux 官方打包脚本
+          # 4. 执行构建 (使用绝对路径调用)
           cd "$TERMUX_BASE"
-          # -a aarch64 代表编译 arm64 架构
-          # -i 忽略已安装依赖的检查
           ./build-package.sh -a aarch64 -i "$PKG_NAME"
 
       - name: Upload Deb Artifact
         uses: actions/upload-artifact@v4
         with:
           name: proot-termux-aarch64-deb
-          path: /home/builder/termux-packages/output/*.deb
+          # 产物通常在 termux-packages/output 目录下
+          path: |
+            /opt/termux-packages/output/*.deb
+            /home/builder/termux-packages/output/*.deb
