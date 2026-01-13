@@ -37,11 +37,13 @@ jobs:
           echo "使用 NDK 路径: $NDK"
 
           # 3. 准备 proot 源码
+          
           PKG_NAME="proot"
-          PKG_DIR="$TERMUX_BASE/packages/$PKG_NAME"
-          mkdir -p "$PKG_DIR"
-          # 注意：为了让 build.sh 使用本地源码，我们需要覆盖它
-          cp -r $GITHUB_WORKSPACE/* "$PKG_DIR/"
+          # Termux 构建系统内部的源码路径通常是 build 目录
+          # 我们需要把代码放进其指定的构建位置
+          BUILD_DIR="/github/home/.termux-build/$PKG_NAME/src"
+          mkdir -p "$BUILD_DIR"
+          cp -r $GITHUB_WORKSPACE/* "$BUILD_DIR/"
 
           # 4. 修改 build.sh 强制使用本地源码
           # 默认 build.sh 会去 GitHub 下载官方源码，我们需要通过设置 TERMUX_PKG_SKIP_SRC_EXTRACT 跳过它
