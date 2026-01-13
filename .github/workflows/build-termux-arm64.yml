@@ -19,49 +19,48 @@ jobs:
           git clone --depth 1 https://github.com/termux/termux-packages.git
           TERMUX_BASE="/opt/termux-packages"
           
-          # 2. 自动探测 NDK 路径
-          # 尝试多个可能的路径并将其导出为脚本需要的环境变量
-          POSSIBLE_NDK_PATHS="/github/home/lib/android-ndk-r27b /github/home/lib/android-ndk-r26b /opt/android-ndk /home/builder/lib/android-ndk"
-          for path in $POSSIBLE_NDK_PATHS; do
-            if [ -d "$path" ]; then
-              export NDK="$path"
-              break
-            fi
-          done
-          
-          # 如果没找到，尝试在系统中查找
-          if [ -z "$NDK" ]; then
-            export NDK=$(find /github /opt /home -maxdepth 3 -type d -name "android-ndk*" | head -n 1)
-          fi
-          
-          echo "使用 NDK 路径: $NDK"
+          # 2. 定位 NDK
+          export NDK="/home/builder/lib/android-ndk-r29"
+          echo "Using NDK: $NDK"
 
-          # 3. 准备 proot 源码
-          
+          # 3. 定义变量
           PKG_NAME="proot"
-          # Termux 构建系统内部的源码路径通常是 build 目录
-          # 我们需要把代码放进其指定的构建位置
-          BUILD_DIR="/github/home/.termux-build/$PKG_NAME/src"
-          mkdir -p "$BUILD_DIR"
-          cp -r $GITHUB_WORKSPACE/* "$BUILD_DIR/"
+          # 这是 Termux 构建脚本默认的源码存放位置
+          TERMUX_TOPDIR="/github/home/.termux-build"
+          PKG_BUILDER_DIR="$TERMUX_TOPDIR/$PKG_NAME"
+          PKG_SRC_DIR="$PKG_BUILDER_DIR/src"
+          
+          # 4. 准备目录并拷贝源码
+          mkdir -p "$PKG_SRC_DIR"
+          cp -r $GITHUB_WORKSPACE/* "$PKG_SRC_DIR/"
 
-          # 4. 修改 build.sh 强制使用本地源码
-          # 默认 build.sh 会去 GitHub 下载官方源码，我们需要通过设置 TERMUX_PKG_SKIP_SRC_EXTRACT 跳过它
-          # 或者简单地清空源码下载地址
-          sed -i 's|^TERMUX_PKG_SRCURL=.*|TERMUX_PKG_SRCURL=|' "$PKG_DIR/build.sh"
-
-          # 5. 执行之前成功的源码修复逻辑
-          cd "$PKG_DIR/src"
+          # 5. 在构建目录执行源码修复
+          cd "$PKG_SRC_DIR/src"
           mkdir -p linux
           curl -LSs -o linux/ashmem.h https://raw.githubusercontent.com/aosp-mirror/platform_bionic/master/libc/kernel/uapi/linux/ashmem.h
           sed -i '1i#include <linux/stat.h>' tracee/statx.h
+          
+          # 清理 ld 参数
           find . -name "GNUmakefile" -exec sed -i 's/-Wl,--rosegment//g' {} +
           find . -name "GNUmakefile" -exec sed -i 's/--rosegment//g' {} +
           find . -name "GNUmakefile" -exec sed -i 's/,,/,/g' {} +
           find . -name "GNUmakefile" -exec sed -i 's/-Wl, / /g' {} +
 
-          # 6. 执行构建
+          # 6. 修改主仓库里的 build.sh 配置文件
+          # 这里的路径必须绝对准确
+          REAL_BUILD_SH="$TERMUX_BASE/packages/$PKG_NAME/build.sh"
+          if [ -f "$REAL_BUILD_SH" ]; then
+              # 清空下载地址，防止覆盖本地源码
+              sed -i 's|^TERMUX_PKG_SRCURL=.*|TERMUX_PKG_SRCURL=|' "$REAL_BUILD_SH"
+          else
+              echo "Error: Cannot find $REAL_BUILD_SH"
+              exit 1
+          fi
+
+          # 7. 运行构建
+          # TERMUX_PKG_SKIP_SRC_EXTRACT 告诉脚本代码已经在 src 目录下了
           cd "$TERMUX_BASE"
+          export TERMUX_PKG_SKIP_SRC_EXTRACT=true
           ./build-package.sh -a aarch64 -i "$PKG_NAME"
 
       - name: Upload Deb Artifact
