@@ -1,6 +1,5 @@
 name: Build PRoot Termux Deb
 on: 
-  push:
   workflow_dispatch:
 
 jobs:
@@ -15,33 +14,52 @@ jobs:
 
       - name: Build and Package
         run: |
-          # 1. 在容器内手动克隆官方构建工具 (确保脚本一定存在)
+          # 1. 克隆官方构建工具
           cd /opt
           git clone --depth 1 https://github.com/termux/termux-packages.git
           TERMUX_BASE="/opt/termux-packages"
           
+          # 2. 自动探测 NDK 路径
+          # 尝试多个可能的路径并将其导出为脚本需要的环境变量
+          POSSIBLE_NDK_PATHS="/github/home/lib/android-ndk-r27b /github/home/lib/android-ndk-r26b /opt/android-ndk /home/builder/lib/android-ndk"
+          for path in $POSSIBLE_NDK_PATHS; do
+            if [ -d "$path" ]; then
+              export NDK="$path"
+              break
+            fi
+          done
+          
+          # 如果没找到，尝试在系统中查找
+          if [ -z "$NDK" ]; then
+            export NDK=$(find /github /opt /home -maxdepth 3 -type d -name "android-ndk*" | head -n 1)
+          fi
+          
+          echo "使用 NDK 路径: $NDK"
+
+          # 3. 准备 proot 源码
           PKG_NAME="proot"
           PKG_DIR="$TERMUX_BASE/packages/$PKG_NAME"
-          
-          # 2. 将当前源码同步到构建位置
           mkdir -p "$PKG_DIR"
+          # 注意：为了让 build.sh 使用本地源码，我们需要覆盖它
           cp -r $GITHUB_WORKSPACE/* "$PKG_DIR/"
 
-          # 3. 修复源码兼容性
+          # 4. 修改 build.sh 强制使用本地源码
+          # 默认 build.sh 会去 GitHub 下载官方源码，我们需要通过设置 TERMUX_PKG_SKIP_SRC_EXTRACT 跳过它
+          # 或者简单地清空源码下载地址
+          sed -i 's|^TERMUX_PKG_SRCURL=.*|TERMUX_PKG_SRCURL=|' "$PKG_DIR/build.sh"
+
+          # 5. 执行之前成功的源码修复逻辑
           cd "$PKG_DIR/src"
           mkdir -p linux
           curl -LSs -o linux/ashmem.h https://raw.githubusercontent.com/aosp-mirror/platform_bionic/master/libc/kernel/uapi/linux/ashmem.h
           sed -i '1i#include <linux/stat.h>' tracee/statx.h
-          
-          # 清理 ld 参数，防止 ld 报错
           find . -name "GNUmakefile" -exec sed -i 's/-Wl,--rosegment//g' {} +
           find . -name "GNUmakefile" -exec sed -i 's/--rosegment//g' {} +
           find . -name "GNUmakefile" -exec sed -i 's/,,/,/g' {} +
           find . -name "GNUmakefile" -exec sed -i 's/-Wl, / /g' {} +
 
-          # 4. 执行构建
+          # 6. 执行构建
           cd "$TERMUX_BASE"
-          # 注意：termux 的构建脚本需要一些环境变量
           ./build-package.sh -a aarch64 -i "$PKG_NAME"
 
       - name: Upload Deb Artifact
