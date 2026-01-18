@@ -1,9 +1,0 @@
-name: Build PRoot Termux Deb
-on:
-  workflow_dispatch: # 必须有这一行
-
-jobs:
-  dummy:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "This is a placeholder"
